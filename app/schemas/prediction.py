@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import List, Optional, Dict, Any
+from typing import List, Optional
 
 # --- Schemas for Individual Ingredients ---
 class PredictionDetails(BaseModel):
@@ -20,7 +20,13 @@ class OcrResult(BaseModel):
     text: str
     ingredients: List[str]
 
-# The CallToAction schema is no longer needed, as we are removing it.
+# PracticalAdvice object: structured practical advice instead of a flat list
+class PracticalAdvice(BaseModel):
+    highest_group: Optional[str]
+    confidence: float = Field(..., ge=0, le=100, description="Confidence percentage for the highest grouping")
+    hazard_level: str
+    iarc_definition: Optional[str]
+    route_advice: List[str]
 
 class PredictionResponse(BaseModel):
     success: bool
@@ -28,4 +34,4 @@ class PredictionResponse(BaseModel):
     ocr_result: Optional[OcrResult]
     ingredients: List[IngredientDetails]
     processing_time: float
-    practical_advice: List[str]
+    practical_advice: PracticalAdvice

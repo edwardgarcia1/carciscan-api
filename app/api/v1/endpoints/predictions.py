@@ -114,12 +114,20 @@ async def predict_from_image(
         if carc_pred_dict and route_pred_dict:
             predicted_group = carc_pred_dict.get("prediction")
             raw_confidence = carc_pred_dict.get("confidence_scores", {}).get(predicted_group, 0)
-            formatted_confidence = f"{raw_confidence * 100:.2f}"
+            # raw_confidence is expected to be 0..1; convert to percent float (0..100)
+            try:
+                conf_val = float(raw_confidence)
+                if conf_val <= 1.0:
+                    conf_pct = conf_val * 100.0
+                else:
+                    conf_pct = conf_val
+            except Exception:
+                conf_pct = 0.0
 
             prediction_details = PredictionDetails(
                 carcinogenicity_group=predicted_group,
                 evidence=carc_pred_dict.get("evidence"),
-                confidence=formatted_confidence,
+                confidence=conf_pct,
                 route_of_exposure=route_pred_dict.get("prediction", [])
             )
             status = "Success"
