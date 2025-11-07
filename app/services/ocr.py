@@ -1,6 +1,7 @@
 import io
 import tempfile
 from typing import Optional
+import re
 
 # Pillow for image handling
 from PIL import Image
@@ -52,7 +53,7 @@ def extract_text_from_image(image_bytes: bytes) -> Optional[str]:
         result = model(doc)
 
         # 4. The result object is rich, but for our purpose, we just need the full text.
-        full_text = result.render()
+        full_text = _normalize_ocr_text(result.render())
 
         return full_text
 
@@ -65,6 +66,27 @@ def extract_text_from_image(image_bytes: bytes) -> Optional[str]:
         if os.path.exists(temp_path):
             os.remove(temp_path)
 
+
+def _normalize_ocr_text(text: str) -> str:
+    """
+    Normalizes OCR text to make it easier to parse.
+    - Converts to lowercase.
+    - Replaces newlines with a single space.
+    - Collapses multiple spaces into one.
+    """
+    if not text:
+        return ""
+
+    # Convert to lowercase
+    normalized_text = text.lower()
+
+    # Replace newlines with a space
+    normalized_text = normalized_text.replace('\n', ' ')
+
+    # Collapse multiple spaces into a single space
+    normalized_text = re.sub(r'\s+', ' ', normalized_text).strip()
+
+    return normalized_text
 
 # --- Test Block ---
 if __name__ == '__main__':

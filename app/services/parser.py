@@ -1,50 +1,54 @@
 import re
 from typing import List
 
-
 def parse_ingredients(text: str) -> List[str]:
     """
-    Parses a block of text and extracts a list of potential ingredient names.
+    Parses OCR text and extracts a list of potential ingredient names.
 
-    This is a placeholder implementation. A real-world implementation would be
-    much more sophisticated, handling commas, semicolons, parentheses, and other
-    delimiters. It might also use a pre-defined list of ingredients to improve accuracy.
-
-    Args:
-        text: The raw string extracted from an image via OCR.
-
-    Returns:
-        A list of cleaned ingredient strings.
+    Heuristics:
+    - Splits text by common delimiters (comma, semicolon, colon, newline, etc.)
+    - Strips extra whitespace and removes duplicates
+    - Filters out entries that are clearly too long to be single ingredients
+      (e.g., paragraphs or marketing descriptions)
+    - Normalizes capitalization
     """
     if not text:
         return []
 
-    # Simple placeholder logic:
-    # 1. Split by common delimiters
-    # 2. Remove extra whitespace
-    # 3. Filter out empty strings
+    # Normalize spacing and punctuation
+    text = re.sub(r'\s+', ' ', text)
+    text = re.sub(r'[:]', ': ', text)  # ensure colons have space after for consistent splitting
 
-    # This regex splits by comma, semicolon, or newline
-    potential_ingredients = re.split(r'[,;\n]', text)
+    # Split by common delimiters
+    potential_ingredients = re.split(r'[,;•:()\[\].]', text)
 
-    # Clean up each ingredient
     cleaned_ingredients = []
-    for ingredient in potential_ingredients:
-        cleaned = ingredient.strip()
-        if cleaned:  # Ensure it's not an empty string
-            cleaned_ingredients.append(cleaned)
+    for ing in potential_ingredients:
+        ing = ing.strip()
+        if not ing:
+            continue
 
-    return cleaned_ingredients
+        # Remove starting bullets, numbering, or phrases like "and"
+        ing = re.sub(r'^(and\s+|[\-\*\d\)]+)\s*', '', ing)
 
+        # Filter out long or unlikely ingredients
+        if len(ing.split()) > 20:
+            continue
 
-# Example of how we might test this
-if __name__ == '__main__':
-    sample_text = """
-    Active Ingredients: Water, Glycerin, Acetyl-L-carnitine; 
-    Cetearyl Alcohol, Phenoxyethanol.
-    Inactive Ingredients: Fragrance, Citric Acid
-    """
-    parsed = parse_ingredients(sample_text)
-    print(parsed)
-    # Expected output: ['Active Ingredients: Water', 'Glycerin', 'Acetyl-L-carnitine', 'Cetearyl Alcohol', 'Phenoxyethanol.', 'Inactive Ingredients: Fragrance', 'Citric Acid']
-    # Note: This simple parser is not perfect, but it's a start!
+        # Remove trailing periods or commas
+        ing = re.sub(r'[\.,]+$', '', ing)
+
+        # Normalize capitalization (optional)
+        ing = ing.strip().capitalize()
+
+        cleaned_ingredients.append(ing)
+
+    # Deduplicate while preserving order
+    seen = set()
+    unique_ingredients = []
+    for ing in cleaned_ingredients:
+        if ing.lower() not in seen:
+            seen.add(ing.lower())
+            unique_ingredients.append(ing)
+
+    return unique_ingredients

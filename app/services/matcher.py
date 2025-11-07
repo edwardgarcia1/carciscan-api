@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from app.crud.carciscan import find_cid_by_synonym_fuzzy
 
 
-def find_best_synonym_match(search_term: str, db: Session, score_cutoff: float = 0.90) -> Optional[Tuple[str, int]]:
+def find_best_synonym_match(search_term: str, db: Session, score_cutoff: float = 0.95) -> Optional[Tuple[str, int]]:
     """
     Finds the best matching synonym using the high-performance DuckDB function.
     """
