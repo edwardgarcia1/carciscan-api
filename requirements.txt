@@ -13,3 +13,4 @@ python-doctr
 xgboost
 scikit-learn
 duckdb-engine
+opencv-python-headless
