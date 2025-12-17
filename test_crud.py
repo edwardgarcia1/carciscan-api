@@ -3,12 +3,8 @@
 import sys
 import os
 
-# Add the 'app' directory to the Python path
-# This allows us to import modules from the 'app' directory
-sys.path.append(os.path.join(os.path.dirname(__file__), 'app'))
-
-from db.session import SessionLocal
-from crud.carciscan import get_cid_by_synonym, get_smiles_by_cid
+from app.db.session import SessionLocal
+from app.crud.carciscan import get_cid_by_synonym, get_smiles_by_cid
 
 
 def test_database_connection():
