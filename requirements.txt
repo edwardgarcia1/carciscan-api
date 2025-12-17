@@ -10,7 +10,8 @@ rdkit==2025.9.1
 duckdb==1.4.1
 python-multipart
 uvicorn
-python-doctr
 xgboost
 scikit-learn
 duckdb-engine
+paddlepaddle
+paddleocr
