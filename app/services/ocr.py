@@ -1,3 +1,10 @@
+import os
+
+os.environ["CUDA_VISIBLE_DEVICES"] = ""
+os.environ["OPENCV_OPENCL_RUNTIME"] = "disabled"
+os.environ["OMP_NUM_THREADS"] = "1"
+os.environ["MKL_NUM_THREADS"] = "1"
+
 import io
 import tempfile
 from typing import Optional
@@ -6,21 +13,17 @@ import re
 # Pillow for image handling
 from PIL import Image
 
-# DocTR imports
-from doctr.io import DocumentFile
-from doctr.models import ocr_predictor
-
 # --- Global Model Cache ---
 _ocr_model = None
 
 
 def get_ocr_model():
-    """Loads the OCR model if it hasn't been loaded yet."""
     global _ocr_model
     if _ocr_model is None:
-        print("Loading DocTR OCR model... (this may take a moment on first run)")
+        print("Loading DocTR OCR model...")
+        from doctr.models import ocr_predictor  # ← move here
         _ocr_model = ocr_predictor(pretrained=True)
-        print("✅ DocTR OCR model loaded successfully.")
+        print("OCR model loaded")
     return _ocr_model
 
 
@@ -34,6 +37,8 @@ def extract_text_from_image(image_bytes: bytes) -> Optional[str]:
     Returns:
         A single string containing all extracted text, or None if extraction fails.
     """
+
+    from doctr.io import DocumentFile
     model = get_ocr_model()
 
     # Create a temporary file. `delete=False` allows us to close the file
