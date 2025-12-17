@@ -1,3 +1,4 @@
+opencv-python-headless
 SQLAlchemy==2.0.44
 fastapi==0.121.0
 pydantic-settings==2.11.0
@@ -13,4 +14,3 @@ python-doctr
 xgboost
 scikit-learn
 duckdb-engine
-opencv-python-headless
