@@ -9,8 +9,9 @@ if PROJECT_ROOT not in sys.path:
     sys.path.append(PROJECT_ROOT)
 
 import time
-from fastapi import APIRouter, File, UploadFile, HTTPException, Depends
+from fastapi import APIRouter, File, UploadFile, HTTPException, Depends, Body
 from sqlalchemy.orm import Session
+from pydantic import BaseModel
 
 # Import all our services and schemas
 from app.services.ocr import extract_text_from_image
@@ -21,46 +22,29 @@ from app.services.predictor import predict_carcinogenicity, predict_route
 from app.services.analyzer import get_practical_advice
 from app.services.matcher import find_best_synonym_match
 from app.api.deps import get_db
-
 from app.schemas.prediction import (
-    PredictionResponse, IngredientDetails, PredictionDetails, OcrResult
+    PredictionResponse,
+    IngredientDetails,
+    PredictionDetails,
+    OcrResult
 )
 from app.core.constants import IARC_EVIDENCE
 
 router = APIRouter()
 
+# Pydantic model for text input
+class TextInput(BaseModel):
+    text: str
 
-@router.post("/predict", response_model=PredictionResponse)
-async def predict_from_image(
-        file: UploadFile = File(...),
-        db: Session = Depends(get_db)
-):
-    start_time = time.time()
-
-    # 1. OCR
-    try:
-        image_bytes = await file.read()
-        raw_text = extract_text_from_image(image_bytes)
-        if not raw_text:
-            raise HTTPException(status_code=400, detail="Could not extract text from the image.")
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error during image processing: {e}")
-
-    # 2. Parsing
-    ingredient_names = parse_ingredients(raw_text)
-    if not ingredient_names:
-        raise HTTPException(status_code=400, detail="Could not parse any ingredients from the extracted text.")
-
-    ocr_result = OcrResult(text=raw_text, ingredients=ingredient_names)
-
+# Shared helper function to process ingredients
+def process_ingredients(ingredient_names: list, db: Session):
     # 3. Loop through ingredients and process each one
     final_ingredient_details = []
     for name in ingredient_names:
         print(f"--- Processing ingredient: {name} ---")
-
+        
         # 4. Fuzzy Lookup for CID and Matched Name
         match_result = find_best_synonym_match(name, db)
-
         if not match_result:
             final_ingredient_details.append(
                 IngredientDetails(
@@ -72,11 +56,11 @@ async def predict_from_image(
                 )
             )
             continue
-
+            
         # Unpack the result
         matched_name, cid = match_result
         print(f"Fuzzy match found: '{name}' -> '{matched_name}' with CID {cid}")
-
+        
         # 5. Lookup SMILES
         smiles = get_smiles_by_cid(db, cid)
         if not smiles:
@@ -90,7 +74,7 @@ async def predict_from_image(
                 )
             )
             continue
-
+            
         # 6. Calculate Descriptors
         descriptor_dict = calculate_rdkit_descriptors(smiles)
         if not descriptor_dict:
@@ -104,16 +88,17 @@ async def predict_from_image(
                 )
             )
             continue
-
+            
         # 7. Predict
         carc_pred_dict = predict_carcinogenicity(descriptor_dict)
         route_pred_dict = predict_route(descriptor_dict)
-
+        
         # 8. Structure the result for this ingredient
         prediction_details = None
         if carc_pred_dict and route_pred_dict:
             predicted_group = carc_pred_dict.get("prediction")
             raw_confidence = carc_pred_dict.get("confidence_scores", {}).get(predicted_group, 0)
+            
             # raw_confidence is expected to be 0..1; convert to percent float (0..100)
             try:
                 conf_val = float(raw_confidence)
@@ -123,7 +108,7 @@ async def predict_from_image(
                     conf_pct = conf_val
             except Exception:
                 conf_pct = 0.0
-
+                
             prediction_details = PredictionDetails(
                 carcinogenicity_group=predicted_group,
                 evidence=carc_pred_dict.get("evidence"),
@@ -133,7 +118,7 @@ async def predict_from_image(
             status = "Success"
         else:
             status = "Prediction model failed"
-
+            
         final_ingredient_details.append(
             IngredientDetails(
                 name=name,
@@ -143,13 +128,71 @@ async def predict_from_image(
                 status=status
             )
         )
+    
+    return final_ingredient_details
 
+@router.post("/predict", response_model=PredictionResponse)
+async def predict_from_image(
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db)
+):
+    start_time = time.time()
+    
+    # 1. OCR
+    try:
+        image_bytes = await file.read()
+        raw_text = extract_text_from_image(image_bytes)
+        if not raw_text:
+            raise HTTPException(status_code=400, detail="Could not extract text from the image.")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error during image processing: {e}")
+    
+    # 2. Parsing
+    ingredient_names = parse_ingredients(raw_text)
+    if not ingredient_names:
+        raise HTTPException(status_code=400, detail="Could not parse any ingredients from the extracted text.")
+    
+    ocr_result = OcrResult(text=raw_text, ingredients=ingredient_names)
+    
+    # 3. Process ingredients using shared helper function
+    final_ingredient_details = process_ingredients(ingredient_names, db)
+    
     # 9. Get practical advice
     practical_advice = get_practical_advice(final_ingredient_details)
-
+    
     # 10. Calculate processing time and return response
     processing_time = round(time.time() - start_time, 2)
+    return PredictionResponse(
+        success=True,
+        message="Analysis complete.",
+        ocr_result=ocr_result,
+        ingredients=final_ingredient_details,
+        processing_time=processing_time,
+        practical_advice=practical_advice
+    )
 
+@router.post("/predict-text", response_model=PredictionResponse)
+async def predict_from_text(
+    text_input: TextInput,
+    db: Session = Depends(get_db)
+):
+    start_time = time.time()
+    
+    # 1. Parsing (bypass OCR)
+    ingredient_names = parse_ingredients(text_input.text)
+    if not ingredient_names:
+        raise HTTPException(status_code=400, detail="Could not parse any ingredients from the provided text.")
+    
+    ocr_result = OcrResult(text=text_input.text, ingredients=ingredient_names)
+    
+    # 2. Process ingredients using shared helper function
+    final_ingredient_details = process_ingredients(ingredient_names, db)
+    
+    # 3. Get practical advice
+    practical_advice = get_practical_advice(final_ingredient_details)
+    
+    # 4. Calculate processing time and return response
+    processing_time = round(time.time() - start_time, 2)
     return PredictionResponse(
         success=True,
         message="Analysis complete.",
